@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
-import { Layers, Home, LayoutDashboard } from "lucide-react"
+import { Layers, Home, LayoutDashboard, Code } from "lucide-react"
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
 
 export default function Navbar() {
@@ -22,6 +22,12 @@ export default function Navbar() {
       href: "/dashboard",
       icon: <LayoutDashboard className="h-4 w-4 mr-2" />,
       active: pathname === "/dashboard",
+    },
+    {
+      name: "AI Playground",
+      href: "/ai-playground",
+      icon: <Code className="h-4 w-4 mr-2" />,
+      active: pathname === "/ai-playground",
     },
   ]
 

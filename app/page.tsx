@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
+import Link from "next/link"
+import { LayoutDashboard, Code, Github } from "lucide-react"
 
 export default function Home() {
   const [url, setUrl] = useState("")
@@ -60,6 +62,43 @@ export default function Home() {
                 "Start Analysis"
               )}
             </Button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <Link
+              href="/dashboard"
+              className="group relative overflow-hidden rounded-lg border bg-background p-6 hover:border-primary text-center"
+            >
+              <div className="flex flex-col items-center gap-2">
+                <LayoutDashboard className="h-8 w-8" />
+                <div className="text-xl font-semibold">Your Dashboard</div>
+                <p className="text-muted-foreground">Manage your site configurations</p>
+              </div>
+            </Link>
+
+            <Link
+              href="/ai-playground"
+              className="group relative overflow-hidden rounded-lg border bg-background p-6 hover:border-primary text-center"
+            >
+              <div className="flex flex-col items-center gap-2">
+                <Code className="h-8 w-8" />
+                <div className="text-xl font-semibold">AI Playground</div>
+                <p className="text-muted-foreground">Use AI to convert websites</p>
+              </div>
+            </Link>
+
+            <Link
+              href="https://github.com/yourusername/website-converter"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative overflow-hidden rounded-lg border bg-background p-6 hover:border-primary text-center"
+            >
+              <div className="flex flex-col items-center gap-2">
+                <Github className="h-8 w-8" />
+                <div className="text-xl font-semibold">View Source</div>
+                <p className="text-muted-foreground">Check out the GitHub repository</p>
+              </div>
+            </Link>
           </div>
 
           <div className="mt-8 text-left">
