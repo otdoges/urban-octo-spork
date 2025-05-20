@@ -65,7 +65,6 @@ export const getWebsiteConfigs = query({
     
     const configs = await ctx.db
       .query("configs")
-      .withIndex("by_website")
       .filter((q) => q.eq(q.field("websiteId"), args.websiteId))
       .collect();
     

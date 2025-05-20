@@ -45,13 +45,12 @@ export const getWebsiteElements = query({
     
     let elementsQuery = ctx.db
       .query("elements")
-      .withIndex("by_website")
       .filter((q) => q.eq(q.field("websiteId"), args.websiteId));
       
     if (args.elementType) {
       elementsQuery = ctx.db
         .query("elements")
-        .withIndex("by_website_and_type")
+
         .filter((q) => {
           // Ensure args.elementType is not undefined before using it
           const elementType = args.elementType as string;
