@@ -2,15 +2,6 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // Users table to store user information linked with Clerk
-  users: defineTable({
-    userId: v.string(),
-    name: v.optional(v.string()),
-    email: v.optional(v.string()),
-    image: v.optional(v.string()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  }).index("by_user_id", ["userId"]),
 
   // Websites table to store website conversion data
   websites: defineTable({

@@ -64,7 +64,7 @@ export default function Home() {
             </Button>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
             <Link
               href="/dashboard"
               className="group relative overflow-hidden rounded-lg border bg-background p-6 hover:border-primary text-center"
@@ -73,17 +73,6 @@ export default function Home() {
                 <LayoutDashboard className="h-8 w-8" />
                 <div className="text-xl font-semibold">Your Dashboard</div>
                 <p className="text-muted-foreground">Manage your site configurations</p>
-              </div>
-            </Link>
-
-            <Link
-              href="/ai-playground"
-              className="group relative overflow-hidden rounded-lg border bg-background p-6 hover:border-primary text-center"
-            >
-              <div className="flex flex-col items-center gap-2">
-                <Code className="h-8 w-8" />
-                <div className="text-xl font-semibold">AI Playground</div>
-                <p className="text-muted-foreground">Use AI to convert websites</p>
               </div>
             </Link>
 
