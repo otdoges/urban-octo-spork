@@ -42,29 +42,26 @@ export class WebContainerService {
     try {
       // Save env config for later use
       this.envConfig = env;
+      
+      // Initialize AI client if GitHub token is provided
+      if (env.GITHUB_TOKEN) {
+        this.aiClient = new AzureAIClient(env.GITHUB_TOKEN);
+      }
 
       // Initialize WebContainer
       this.container = await WebContainer.boot();
       
-      // Mount the filesystem
+      // Mount the file system
       await this.container.mount(files);
 
-      // Setup environment variables
+      // Set environment variables
       await this.setEnvironmentVariables(env);
-
-      // Initialize AI client if GitHub token is provided
-      if (env.GITHUB_TOKEN) {
-        try {
-          this.aiClient = new AzureAIClient();
-        } catch (error) {
-          console.error("Failed to initialize AI client:", error);
-        }
-      }
 
       this.isReady = true;
       return true;
     } catch (error) {
-      console.error("WebContainer initialization failed:", error);
+      console.error("Failed to initialize WebContainer:", error);
+      this.isReady = false;
       return false;
     }
   }
@@ -107,10 +104,10 @@ export class WebContainerService {
     // Capture output
     process.output.pipeTo(
       new WritableStream({
- const decoder = new TextDecoder();
- write(chunk) {
-   output.push(decoder.decode(chunk));
- }
+        write(chunk) {
+          const decoder = new TextDecoder();
+          output.push(decoder.decode(chunk));
+        }
       })
     );
     
@@ -142,7 +139,7 @@ export class WebContainerService {
       
       return response.content;
     } catch (error) {
-      console.error("Code generation failed:", error);
+      console.error("Failed to generate code:", error);
       throw error;
     }
   }
@@ -151,30 +148,19 @@ export class WebContainerService {
    * Analyze a website and generate a conversion template
    */
   public async analyzeWebsite(url: string): Promise<string> {
-    if (!this.container || !this.isReady) {
-      throw new Error("WebContainer is not initialized");
-    }
-
     if (!this.aiClient) {
       throw new Error("AI client is not initialized. Make sure GITHUB_TOKEN is provided.");
     }
 
-    // Add a specialized section for website analysis
-    this.systemPrompt.addSection(
-      "website_analysis",
-      `Analyze the website at ${url} and identify:\n` +
-      "1. Color scheme and design patterns\n" +
-      "2. Component structure\n" +
-      "3. Layout and responsive design approach\n" +
-      "4. Content structure\n" +
-      "5. Interactive elements\n" +
-      "6. Accessibility features\n\n" +
-      "Provide a detailed breakdown that can be used to create a customizable template."
-    );
-
-    // Generate analysis using AI
-    const analysisPrompt = `Analyze the website at ${url} and create a detailed breakdown for converting it to a template.`;
-    return this.generateCode(analysisPrompt);
+    const systemPromptText = this.systemPrompt.generatePrompt();
+    
+    try {
+      const result = await this.aiClient.analyzeWebsite(url, systemPromptText);
+      return result;
+    } catch (error) {
+      console.error("Failed to analyze website:", error);
+      throw error;
+    }
   }
 
   /**
@@ -198,32 +184,16 @@ export class WebContainerService {
     if (!this.container || !this.isReady) {
       throw new Error("WebContainer is not initialized");
     }
-
+    
     try {
-      // Spawn the dev server process (do not await its exit)
-      const process = await this.container.spawn('bash', ['-c', 'npm run dev']);
-
-      // Pipe output to the provided callback for real-time logs
-      if (onData) {
-        const decoder = new TextDecoder();
-        process.output.pipeTo(
-          new WritableStream({
-            write(chunk) {
-              onData(decoder.decode(chunk));
-            }
-          })
-        );
-      }
-
-      // Get the URL for the WebContainer server
-      const serverUrl = await this.container.serveHostedDirectory({
-        path: '/',
-        options: {
-          port: 3000, // Default port for Next.js
-        }
-      });
-
-      return serverUrl;
+      // Start a development server
+      await this.container.spawn('npm', ['start']);
+      
+      // Get the URL for the server
+      const port = 3000;
+      const url = `http://localhost:${port}`;
+      
+      return url;
     } catch (error) {
       console.error("Failed to start development server:", error);
       throw error;
@@ -254,7 +224,7 @@ export class WebContainerService {
     if (!this.container || !this.isReady) {
       throw new Error("WebContainer is not initialized");
     }
-
+    
     try {
       await this.container.fs.writeFile(path, content);
     } catch (error) {

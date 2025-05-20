@@ -33,7 +33,7 @@ export class AzureAIClient {
   private defaultModel: string;
 
   constructor(token?: string) {
-    const githubToken = token || process.env.GITHUB_TOKEN;
+    const githubToken = token || process.env.GITHUB_TOKEN || "";
     const endpoint = "https://models.github.ai/inference";
     
     if (!githubToken) {
@@ -74,8 +74,10 @@ export class AzureAIClient {
         throw new Error(`Error: ${response.body.error}`);
       }
 
+      const messageContent = response.body.choices[0].message.content || "";
+      
       return {
-        content: response.body.choices[0].message.content,
+        content: messageContent,
         usage: response.body.usage
       };
     } catch (error) {
@@ -106,12 +108,43 @@ export class AzureAIClient {
         throw new Error(`Error: ${response.body.error}`);
       }
 
+      const messageContent = response.body.choices[0].message.content || "";
+      
       return {
-        content: response.body.choices[0].message.content,
+        content: messageContent,
         usage: response.body.usage
       };
     } catch (error) {
       console.error("AI inference error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze a website and generate HTML/CSS/JS code
+   */
+  async analyzeWebsite(url: string, systemPrompt: string): Promise<string> {
+    try {
+      const response = await this.client.path("/conversation").post({
+        body: {
+          messages: [
+            { role: "system", content: systemPrompt || "" },
+            { role: "user", content: `Analyze this website: ${url}` }
+          ],
+          temperature: 0.5,
+          top_p: 0.95,
+          model: AIModel.GPT4
+        }
+      });
+
+      if (isUnexpected(response)) {
+        throw new Error(`Error: ${response.body.error}`);
+      }
+
+      const messageContent = response.body.choices[0].message.content || "";
+      return messageContent;
+    } catch (error) {
+      console.error("Website analysis error:", error);
       throw error;
     }
   }

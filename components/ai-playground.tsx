@@ -26,19 +26,23 @@ app.get('/', (req, res) => {
 
 app.listen(port, () => {
   console.log(\`Server running at http://localhost:\${port}\`);
-});`
+});
+`
     }
   },
   'package.json': {
     file: {
       contents: `{
   "name": "webcontainer-project",
+  "version": "1.0.0",
+  "description": "WebContainer example",
+  "main": "index.js",
   "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "express": "latest",
-    "@azure-rest/ai-inference": "latest",
-    "@azure/core-auth": "latest",
-    "@azure/core-sse": "latest"
+    "express": "^4.18.2"
   }
 }`
     }
@@ -57,43 +61,49 @@ export default function AIPlayground() {
   const [activeTab, setActiveTab] = useState<string>('prompt');
   
   const webContainerRef = useRef<WebContainerService | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  useEffect(() => {
-    async function initWebContainer() {
-      if (!webContainerRef.current) {
-        try {
-          setLoading(true);
-          setOutput('Initializing WebContainer...');
-          
-          const service = new WebContainerService();
-          webContainerRef.current = service;
-          
-          // Initialize with basic filesystem
-          const success = await service.initialize(
-            initialFileSystem,
-            { GITHUB_TOKEN: token }
-          );
-          
-          if (success) {
-            setOutput(prev => prev + '\nWebContainer initialized successfully!');
-            
-            // Load system prompt
-            const systemPrompt = service.getSystemPrompt();
-            setSystemPromptText(systemPrompt.generatePrompt());
-            
-            setInitialized(true);
-          } else {
-            setOutput(prev => prev + '\nFailed to initialize WebContainer.');
-          }
-        } catch (error) {
-          console.error('WebContainer initialization failed:', error);
-          setOutput(prev => prev + `\nError: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-          setLoading(false);
-        }
+  // Function to initialize WebContainer
+  const initWebContainer = async () => {
+    if (webContainerRef.current) return;
+    try {
+      setLoading(true);
+      setOutput('Initializing WebContainer...');
+      
+      const service = new WebContainerService();
+      webContainerRef.current = service;
+      
+      // Initialize with basic filesystem
+      const success = await service.initialize(
+        initialFileSystem,
+        { GITHUB_TOKEN: token }
+      );
+      
+      if (success) {
+        setOutput(prev => prev + '\nWebContainer initialized successfully!');
+        
+        // Load system prompt
+        const systemPrompt = service.getSystemPrompt();
+        setSystemPromptText(systemPrompt.generatePrompt());
+        
+        setInitialized(true);
+      } else {
+        setOutput(prev => prev + '\nFailed to initialize WebContainer.');
       }
+    } catch (error) {
+      console.error('WebContainer initialization failed:', error);
+      setOutput(prev => prev + `\nError: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setLoading(false);
     }
+  };
+  
+  // Effect to initialize WebContainer when token is set
+  useEffect(() => {
+    // Clean up function
+    return () => {
+      webContainerRef.current = null;
+    };
     
     // Only initialize if we have a token
     if (token && !initialized && !webContainerRef.current) {
@@ -131,7 +141,7 @@ export default function AIPlayground() {
     }
   };
 
-  // Analyze website
+  // Analyze website with AI
   const handleAnalyzeWebsite = async () => {
     if (!webContainerRef.current || !initialized) {
       setOutput('WebContainer not initialized. Please set your GitHub token first.');
@@ -139,16 +149,16 @@ export default function AIPlayground() {
     }
     
     if (!url) {
-      setOutput('Please enter a website URL.');
+      setOutput('Please enter a URL to analyze.');
       return;
     }
     
     try {
       setLoading(true);
-      setOutput(`Analyzing website: ${url}...`);
+      setOutput(`Analyzing website: ${url}`);
       
-      const analysis = await webContainerRef.current.analyzeWebsite(url);
-      setOutput(analysis);
+      const result = await webContainerRef.current.analyzeWebsite(url);
+      setOutput(result);
     } catch (error) {
       console.error('Website analysis failed:', error);
       setOutput(`Error analyzing website: ${error instanceof Error ? error.message : String(error)}`);
@@ -157,7 +167,23 @@ export default function AIPlayground() {
     }
   };
 
-  // Run code in WebContainer
+  // Update system prompt
+  const handleUpdateSystemPrompt = () => {
+    if (!webContainerRef.current || !initialized) {
+      setOutput('WebContainer not initialized. Please set your GitHub token first.');
+      return;
+    }
+    
+    try {
+      webContainerRef.current.getSystemPrompt().loadFromJSON(systemPromptText);
+      setOutput('System prompt updated successfully.');
+    } catch (error) {
+      console.error('System prompt update failed:', error);
+      setOutput(`Error updating system prompt: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  // Run generated code
   const handleRunCode = async () => {
     if (!webContainerRef.current || !initialized) {
       setOutput('WebContainer not initialized. Please set your GitHub token first.');
@@ -168,14 +194,12 @@ export default function AIPlayground() {
       setLoading(true);
       setOutput('Installing dependencies...');
       
-      // Install dependencies
-      const installed = await webContainerRef.current.installDependencies();
+      const installSuccess = await webContainerRef.current.installDependencies();
       
-      if (installed) {
+      if (installSuccess) {
         setOutput(prev => prev + '\nDependencies installed successfully.');
         setOutput(prev => prev + '\nStarting server...');
         
-        // Start the server
         const serverUrl = await webContainerRef.current.startDevServer();
         setOutput(prev => prev + `\nServer started at ${serverUrl}`);
         
@@ -194,47 +218,17 @@ export default function AIPlayground() {
     }
   };
 
-  // Update system prompt
-  const handleUpdateSystemPrompt = () => {
-    if (!webContainerRef.current || !initialized) {
-      setOutput('WebContainer not initialized. Please set your GitHub token first.');
-      return;
-    }
-    
-    try {
-      const systemPrompt = webContainerRef.current.getSystemPrompt();
-      
-      // Parse the text and update the system prompt
-      const sections = systemPromptText.split(/(?=<[a-z_]+>)/);
-      
-      for (const section of sections) {
-        const matches = section.match(/<([a-z_]+)>([\s\S]*?)<\/\1>/);
-        
-        if (matches && matches.length === 3) {
-          const [, title, content] = matches;
-          systemPrompt.addSection(title, content.trim());
-        }
-      }
-      
-      setOutput('System prompt updated successfully.');
-    } catch (error) {
-      console.error('Failed to update system prompt:', error);
-      setOutput(`Error updating system prompt: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
-
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <Card>
+    <div className="container mx-auto py-6">
+      <Card className="mb-8">
         <CardHeader>
           <CardTitle>AI-Powered Website Converter</CardTitle>
-          <CardDescription>
-            Convert any website into a customizable template using WebContainers and AI
-          </CardDescription>
+          <CardDescription>Convert any website to modern React & Tailwind CSS</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
+          <div className="mb-6">
+            <label className="mb-2 block text-sm font-medium">GitHub Token</label>
+            <div className="flex space-x-2">
               <Input
                 type="password"
                 placeholder="Enter your GitHub token"
@@ -243,166 +237,133 @@ export default function AIPlayground() {
                 disabled={initialized}
                 className="flex-1"
               />
-              <Button variant="outline" disabled={!token || initialized} onClick={() => {
-                if (webContainerRef.current) return;
-                async function initContainer() {
-                  try {
-                    setLoading(true);
-                    setOutput('Initializing WebContainer...');
-                    
-                    const service = new WebContainerService();
-                    webContainerRef.current = service;
-                    
-                    // Initialize with basic filesystem
-                    const success = await service.initialize(
-                      initialFileSystem,
-                      { GITHUB_TOKEN: token }
-                    );
-                    
-                    if (success) {
-                      setOutput(prev => prev + '\nWebContainer initialized successfully!');
-                      
-                      // Load system prompt
-                      const systemPrompt = service.getSystemPrompt();
-                      setSystemPromptText(systemPrompt.generatePrompt());
-                      
-                      setInitialized(true);
-                    } else {
-                      setOutput(prev => prev + '\nFailed to initialize WebContainer.');
-                    }
-                  } catch (error) {
-                    console.error('WebContainer initialization failed:', error);
-                    setOutput(prev => prev + `\nError: ${error instanceof Error ? error.message : String(error)}`);
-                  } finally {
-                    setLoading(false);
-                  }
-                }
-                initContainer();
-              }}>
+              <Button variant="outline" disabled={!token || initialized} onClick={initWebContainer}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Set Token'}
               </Button>
             </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Required for AI capabilities. Get one from{' '}
+              <a
+                href="https://github.com/settings/tokens"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                GitHub
+              </a>
+            </p>
+          </div>
+
+          <Tabs defaultValue="prompt" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
+              <TabsTrigger value="website">Website Analysis</TabsTrigger>
+              <TabsTrigger value="system">System Prompt</TabsTrigger>
+            </TabsList>
             
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid grid-cols-3">
-                <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
-                <TabsTrigger value="system">System Prompt</TabsTrigger>
-                <TabsTrigger value="website">Website Analysis</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="prompt" className="space-y-4">
+            <TabsContent value="prompt" className="space-y-4">
+              <div className="mt-4">
+                <label className="mb-2 block text-sm font-medium">Write a prompt for code generation</label>
                 <Textarea
-                  placeholder="Enter your code generation prompt..."
+                  placeholder="Create a React component for a responsive navigation bar with dark mode support..."
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  className="min-h-[200px]"
+                  rows={5}
+                  className="mb-2"
                 />
-                
-                <div className="flex items-center space-x-2">
-                  <select
-                    className="border rounded-md px-3 py-2"
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value as AIModel)}
-                  >
-                    <option value={AIModel.GPT4}>GPT-4.1</option>
-                    <option value={AIModel.O4_MINI}>O4-Mini</option>
-                    <option value={AIModel.GROK3}>Grok-3</option>
-                  </select>
-                  
-                  <Button 
-                    onClick={handleGenerateCode} 
-                    disabled={!initialized || loading || !prompt}
-                    className="flex-1"
-                  >
-                    {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Code className="h-4 w-4 mr-2" />}
-                    Generate Code
-                  </Button>
+                <div className="flex justify-between">
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium">Model:</label>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value as AIModel)}
+                      className="rounded border p-1 text-sm"
+                    >
+                      <option value={AIModel.GPT4}>GPT-4</option>
+                      <option value={AIModel.O4_MINI}>O4-Mini</option>
+                      <option value={AIModel.GROK3}>Grok-3</option>
+                    </select>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button 
+                      onClick={handleGenerateCode} 
+                      disabled={loading || !initialized}
+                    >
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Code className="mr-2 h-4 w-4" />}
+                      Generate Code
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleRunCode} 
+                      disabled={loading || !initialized}
+                    >
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                      Run Code
+                    </Button>
+                  </div>
                 </div>
-              </TabsContent>
-              
-              <TabsContent value="system" className="space-y-4">
-                <Textarea
-                  placeholder="System prompt configuration..."
-                  value={systemPromptText}
-                  onChange={(e) => setSystemPromptText(e.target.value)}
-                  className="min-h-[300px] font-mono text-sm"
-                />
-                
-                <Button 
-                  onClick={handleUpdateSystemPrompt} 
-                  disabled={!initialized || loading}
-                >
-                  {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Settings2 className="h-4 w-4 mr-2" />}
-                  Update System Prompt
-                </Button>
-              </TabsContent>
-              
-              <TabsContent value="website" className="space-y-4">
-                <div className="flex items-center space-x-2">
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="website" className="space-y-4">
+              <div className="mt-4">
+                <label className="mb-2 block text-sm font-medium">Enter a website URL to analyze</label>
+                <div className="flex space-x-2">
                   <Input
-                    type="url"
-                    placeholder="Enter website URL to analyze"
+                    type="text"
+                    placeholder="https://example.com"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     className="flex-1"
                   />
-                  
                   <Button 
                     onClick={handleAnalyzeWebsite} 
-                    disabled={!initialized || loading || !url}
+                    disabled={loading || !initialized}
                   >
-                    {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                     Analyze
                   </Button>
                 </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="system" className="space-y-4">
+              <div className="mt-4">
+                <label className="mb-2 block text-sm font-medium">Customize System Prompt</label>
+                <Textarea
+                  placeholder="System prompt for the AI..."
+                  value={systemPromptText}
+                  onChange={(e) => setSystemPromptText(e.target.value)}
+                  rows={10}
+                  className="mb-2 font-mono text-sm"
+                />
+                <Button 
+                  onClick={handleUpdateSystemPrompt}
+                  disabled={loading || !initialized}
+                >
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Settings2 className="mr-2 h-4 w-4" />}
+                  Update System Prompt
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+          
+          <div className="mt-6">
+            <label className="mb-2 block text-sm font-medium">Output</label>
+            <div className="h-64 overflow-auto rounded border bg-black p-4 font-mono text-sm text-white">
+              <pre>{output || 'Set your GitHub token to begin...'}</pre>
+            </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button 
-            variant="outline" 
-            onClick={() => setOutput('')}
-            disabled={loading || !output}
-          >
-            Clear Output
-          </Button>
-          
-          <Button 
-            onClick={handleRunCode} 
-            disabled={!initialized || loading}
-          >
-            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-            Run in WebContainer
-          </Button>
-        </CardFooter>
       </Card>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Card className="h-[500px] overflow-hidden">
-          <CardHeader>
-            <CardTitle>Output</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[400px] overflow-y-auto">
-            <pre className="whitespace-pre-wrap text-sm p-4 bg-muted rounded-lg">
-              {output || 'Output will appear here...'}
-            </pre>
-          </CardContent>
-        </Card>
-        
-        <Card className="h-[500px] overflow-hidden">
-          <CardHeader>
-            <CardTitle>Preview</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[400px]">
-            <iframe 
-              ref={iframeRef}
-              className="w-full h-full border-0 rounded-lg"
-              src="about:blank"
-              title="WebContainer Preview"
-            ></iframe>
-          </CardContent>
-        </Card>
+      <div className="h-80 overflow-hidden rounded border">
+        <iframe
+          ref={iframeRef}
+          className="h-full w-full"
+          src="about:blank"
+          title="WebContainer Output"
+        />
       </div>
     </div>
   );
